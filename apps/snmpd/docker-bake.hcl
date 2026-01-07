@@ -6,7 +6,7 @@ variable "APP" {
 
 variable "VERSION" {
   // renovate: datasource=repology depName=ubuntu_24_04/net-snmp versioning=loose
-  default = "5.9.4+dfsg-1.1ubuntu3.1"
+  default = "5.9.4+dfsg-1.1ubuntu3.2"
 }
 
 variable "SOURCE" {
