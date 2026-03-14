@@ -6,7 +6,7 @@ variable "APP" {
 
 variable "VERSION" {
   // renovate: datasource=repology depName=debian_13/bird2 versioning=loose
-  default = "2.17.1-1"
+  default = "2.17.1-1+deb13u1"
 }
 
 variable "SOURCE" {
