@@ -6,7 +6,7 @@ variable "APP" {
 
 variable "VERSION" {
   // renovate: datasource=docker depName=registry.k8s.io/kubectl
-  default = "v1.35.2"
+  default = "v1.35.3"
 }
 
 variable "SOURCE" {
