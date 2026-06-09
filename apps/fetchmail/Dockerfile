@@ -16,9 +16,9 @@ WORKDIR /data
 RUN chown fetchmail:fetchmail /data \
     && chmod 0744 /data
 
-COPY ./etc/logrotate.d/fetchmail /etc/logrotate.d/fetchmail
-COPY --chmod=0700 ./start.sh /bin/start.sh
-COPY --chmod=0700 --chown=fetchmail:fetchmail ./fetchmail_daemon.sh /bin/fetchmail_daemon.sh
+COPY ./defaults/logrotate.d/fetchmail /etc/logrotate.d/fetchmail
+COPY --chmod=0700 ./entrypoint.sh /bin/start.sh
+COPY --chmod=0700 --chown=fetchmail:fetchmail ./scripts/fetchmail_daemon.sh /bin/fetchmail_daemon.sh
 
 VOLUME ["/data"]
 ENTRYPOINT ["/sbin/tini", "--"]
