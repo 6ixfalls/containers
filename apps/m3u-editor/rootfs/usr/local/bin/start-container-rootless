@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+umask 0027
+
+readonly APP_ROOT="/var/www/html"
+readonly CONFIG_DIR="/var/www/config"
+readonly RUNTIME_DIR="/tmp/m3u-editor"
+
+fail() {
+    echo "ERROR: $*" >&2
+    exit 1
+}
+
+ensure_writable_directory() {
+    local directory="$1"
+    local probe
+
+    mkdir -p "$directory" || fail "Cannot create required directory: $directory"
+    probe="$(mktemp "${directory}/.write-test.XXXXXX")" ||
+        fail "Required path is not writable: $directory"
+    rm -f "$probe"
+}
+
+ensure_link() {
+    local path="$1"
+    local target="$2"
+
+    if [ -L "$path" ]; then
+        [ "$(readlink "$path")" = "$target" ] ||
+            fail "Unexpected symlink target for $path"
+    elif [ -e "$path" ]; then
+        fail "Expected symlink path already exists: $path"
+    else
+        ln -s "$target" "$path"
+    fi
+}
+
+export SUPERVISOR_PHP_USER="m3ue"
+
+if [ "${ENABLE_POSTGRES:-false}" = "true" ]; then
+    case "${DB_HOST:-}" in
+        "" | localhost | 127.0.0.1)
+            fail "Embedded PostgreSQL is unavailable; set DB_HOST to an external service"
+            ;;
+    esac
+fi
+
+cd "$APP_ROOT"
+[ -f artisan ] || fail "Laravel artisan not found in $APP_ROOT"
+
+ensure_writable_directory "$RUNTIME_DIR"
+ensure_writable_directory "$CONFIG_DIR"
+ensure_writable_directory "${APP_ROOT}/bootstrap/cache"
+ensure_writable_directory "${APP_ROOT}/storage/app"
+ensure_writable_directory "${APP_ROOT}/storage/framework"
+
+mkdir -p \
+    "${RUNTIME_DIR}/composer" \
+    "${RUNTIME_DIR}/nginx/client_temp" \
+    "${RUNTIME_DIR}/nginx/conf.d" \
+    "${RUNTIME_DIR}/nginx/fastcgi_temp" \
+    "${RUNTIME_DIR}/nginx/proxy_temp" \
+    "${RUNTIME_DIR}/nginx/scgi_temp" \
+    "${RUNTIME_DIR}/nginx/uwsgi_temp" \
+    "${CONFIG_DIR}/private" \
+    "${APP_ROOT}/storage/app/public" \
+    "${APP_ROOT}/storage/framework/cache/data" \
+    "${APP_ROOT}/storage/framework/sessions" \
+    "${APP_ROOT}/storage/framework/testing" \
+    "${APP_ROOT}/storage/framework/views"
+
+ensure_link \
+    "${RUNTIME_DIR}/nginx/conf.d/laravel.tmpl" \
+    "/usr/local/share/m3u-editor/nginx-conf.d/laravel.tmpl"
+ensure_link \
+    "${RUNTIME_DIR}/nginx/conf.d/xtream.tmpl" \
+    "/usr/local/share/m3u-editor/nginx-conf.d/xtream.tmpl"
+ensure_link \
+    "${APP_ROOT}/storage/app/private" \
+    "${CONFIG_DIR}/private"
+
+exec /usr/local/lib/m3u-editor/start-container "$@"
