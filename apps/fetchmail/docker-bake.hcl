@@ -11,7 +11,7 @@ variable "VERSION" {
 
 variable "OPENSSL_VERSION" {
   // renovate: datasource=repology depName=alpine_3_23/openssl versioning=loose
-  default = "3.5.6-r0"
+  default = "3.5.7-r0"
 }
 
 variable "LOGROTATE_VERSION" {
