@@ -1,14 +1,12 @@
 package main
 
 import (
-	"context"
 	"testing"
 
-	"github.com/6ixfalls/containers/testhelpers"
+	"github.com/6ixfalls/containers/tests"
 )
 
 func Test(t *testing.T) {
-	ctx := context.Background()
-	image := testhelpers.GetTestImage("ghcr.io/6ixfalls/decypharr:rolling")
-	testhelpers.TestCommandSucceeds(t, ctx, image, nil, "id", "-u", "decypharr")
+	image := helpers.GetTestImage("ghcr.io/6ixfalls/decypharr:rolling")
+	helpers.RequireCommandSucceeds(t, image, nil, "id", "-u", "decypharr")
 }

@@ -13,17 +13,31 @@ on:
         type: boolean
         description: Release
         required: true
+    secrets:
+      BOT_APP_ID:
+        required: false
+      BOT_APP_PRIVATE_KEY:
+        required: false
+      DISCORD_WEBHOOK:
+        required: false
+
+concurrency:
+  group: app-builder-${{ inputs.app }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
 
 jobs:
   plan:
     name: Plan
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       app-exists: ${{ steps.app-exists.outputs.exists }}
       platforms: ${{ steps.app-options.outputs.platforms }}
     steps:
       - name: Checkout
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -78,19 +92,26 @@ jobs:
       fail-fast: false
       matrix:
         platform: ${{ fromJson(needs.plan.outputs.platforms) }}
-    runs-on: ${{ startsWith(matrix.platform, 'linux/arm') && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
+    runs-on: ${{ startsWith(matrix.platform, 'linux/arm') && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
+    permissions:
+      contents: read
+      packages: write
+    env:
+      APP: ${{ inputs.app }}
     steps:
       - name: Checkout
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Get Target Architecture
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         id: target
+        env:
+          PLATFORM: ${{ matrix.platform }}
         with:
-          script: |-
-            core.setOutput('arch', '${{ matrix.platform }}'.split('/').pop());
+          script: |
+            core.setOutput('arch', process.env.PLATFORM.split('/').pop());
 
       - name: Get App Options
         uses: ./.github/actions/app-options
@@ -99,7 +120,7 @@ jobs:
           app: ${{ inputs.app }}
 
       - name: Login to GitHub Container Registry
-        uses: docker/login-action@06fb636fac595d6fb4b28a5dfcb21a6f5091859c # v4.5.0
+        uses: docker/login-action@abd2ef45e78c5afb21d64d4ca52ee8550d9572c7 # v4.5.1
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -113,10 +134,6 @@ jobs:
 
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
-
-      - name: Add Include Directory to Build Context
-        run: |-
-          rsync -a --ignore-existing --progress ./include/ ./apps/${{ inputs.app }}/
 
       - name: Build App
         uses: docker/bake-action@d3418bd7d0e9324001bca92fa8ba175ea7e6dc9b # v7.3.0
@@ -134,19 +151,23 @@ jobs:
             *.labels.org.opencontainers.image.version=${{ steps.app-options.outputs.version }}
             *.labels.org.opencontainers.image.revision=${{ github.sha }}
             *.labels.org.opencontainers.image.vendor=${{ github.repository_owner }}
-            *.output=type=image,name=ghcr.io/${{ github.repository_owner }}/${{ inputs.app }},push-by-digest=true,name-canonical=true,push=true,compression=zstd,force-compression=true
+            *.output=${{ inputs.release && format('type=image,name=ghcr.io/{0}/{1},push-by-digest=true,name-canonical=true,push=true,compression=zstd,force-compression=true', github.repository_owner, inputs.app) || 'type=docker' }}
             *.platform=${{ matrix.platform }}
-            *.tags=
+            *.tags=${{ ! inputs.release && format('ghcr.io/{0}/{1}:sandbox', github.repository_owner, inputs.app) || '' }}
           source: ./apps/${{ inputs.app }}
           targets: image
 
       - name: Export Digest
-        run: |-
-          mkdir -p ${{ runner.temp }}/digests
-          DIGEST="${{ fromJSON(steps.bake.outputs.metadata).image['containerimage.digest'] }}"
-          touch "${{ runner.temp }}/digests/${DIGEST#sha256:}"
+        if: ${{ inputs.release }}
+        env:
+          METADATA: ${{ steps.bake.outputs.metadata }}
+        run: |
+          mkdir -p "${RUNNER_TEMP}/digests"
+          DIGEST=$(jq -r '.image["containerimage.digest"]' <<< "$METADATA")
+          touch "${RUNNER_TEMP}/digests/${DIGEST#sha256:}"
 
       - name: Upload Digest
+        if: ${{ inputs.release }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ inputs.app }}-digests-${{ steps.target.outputs.arch }}
@@ -154,16 +175,30 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+      - name: Run App Tests
+        if: ${{ ! inputs.release }}
+        uses: ./.github/actions/app-tests
+        with:
+          app: ${{ inputs.app }}
+          image: ghcr.io/${{ github.repository_owner }}/${{ inputs.app }}:sandbox
+
   merge:
+    if: ${{ inputs.release }}
     name: Merge
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs:
       - build
+    permissions:
+      contents: read
+      packages: write
+    env:
+      APP: ${{ inputs.app }}
+      REPO_OWNER: ${{ github.repository_owner }}
     outputs:
       digest: ${{ steps.digest.outputs.digest }}
     steps:
       - name: Checkout
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -181,7 +216,7 @@ jobs:
           merge-multiple: true
 
       - name: Login to GitHub Container Registry
-        uses: docker/login-action@06fb636fac595d6fb4b28a5dfcb21a6f5091859c # v4.5.0
+        uses: docker/login-action@abd2ef45e78c5afb21d64d4ca52ee8550d9572c7 # v4.5.1
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -189,30 +224,42 @@ jobs:
 
       - name: Create Manifest List and Push
         working-directory: ${{ runner.temp }}/digests
-        run: |-
+        run: |
+          IMAGE="ghcr.io/${REPO_OWNER}/${APP}"
           docker buildx imagetools create \
-              $(jq --raw-output --compact-output '.target."docker-metadata-action".tags | map(select(startswith("ghcr.io/${{ github.repository_owner }}/${{ inputs.app }}")) | "-t " + .) | join(" ")' ${{ runner.temp }}/docker-metadata-action-bake.json) \
-              $(printf 'ghcr.io/${{ github.repository_owner }}/${{ inputs.app }}@sha256:%s ' *)
+              $(jq --raw-output --compact-output --arg image "$IMAGE" '.target."docker-metadata-action".tags | map(select(startswith($image)) | "-t " + .) | join(" ")' "${RUNNER_TEMP}/docker-metadata-action-bake.json") \
+              $(printf "${IMAGE}@sha256:%s " *)
 
       - name: Inspect Image
-        run: |-
-          docker buildx imagetools inspect ghcr.io/${{ github.repository_owner }}/${{ inputs.app }}:$(jq --raw-output '.target."docker-metadata-action".args.DOCKER_META_VERSION' ${{ runner.temp }}/docker-metadata-action-bake.json)
+        run: |
+          TAG=$(jq --raw-output '.target."docker-metadata-action".args.DOCKER_META_VERSION' "${RUNNER_TEMP}/docker-metadata-action-bake.json")
+          docker buildx imagetools inspect "ghcr.io/${REPO_OWNER}/${APP}:${TAG}"
 
       - name: Export Digest
         id: digest
-        run: |-
-          TAG=$(jq --raw-output '.target."docker-metadata-action".args.DOCKER_META_VERSION' ${{ runner.temp }}/docker-metadata-action-bake.json)
-          DIGEST=$(docker buildx imagetools inspect ghcr.io/${{ github.repository_owner }}/${{ inputs.app }}:${TAG} --format '{{ json . }}' | jq --raw-output '.manifest.digest')
-          echo "digest=${DIGEST}" >> $GITHUB_OUTPUT
+        run: |
+          TAG=$(jq --raw-output '.target."docker-metadata-action".args.DOCKER_META_VERSION' "${RUNNER_TEMP}/docker-metadata-action-bake.json")
+          DIGEST=$(docker buildx imagetools inspect "ghcr.io/${REPO_OWNER}/${APP}:${TAG}" --format '{{ json . }}' | jq --raw-output '.manifest.digest')
+          echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
 
   attest:
+    if: ${{ inputs.release }}
     name: Attest
     needs:
       - merge
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    env:
+      APP: ${{ inputs.app }}
+      REPO_OWNER: ${{ github.repository_owner }}
+      DIGEST: ${{ needs.merge.outputs.digest }}
     steps:
       - name: Login to GitHub Container Registry
-        uses: docker/login-action@06fb636fac595d6fb4b28a5dfcb21a6f5091859c # v4.5.0
+        uses: docker/login-action@abd2ef45e78c5afb21d64d4ca52ee8550d9572c7 # v4.5.1
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -233,51 +280,10 @@ jobs:
 
       - name: Verify Attestation
         env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: |-
-          gh attestation verify --repo ${{ github.repository }} oci://ghcr.io/${{ github.repository_owner }}/${{ inputs.app }}@${{ needs.merge.outputs.digest }}
-
-  test:
-    if: ${{ ! inputs.release }}
-    name: Test
-    needs:
-      - merge
-      - attest
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
-        with:
-          persist-credentials: false
-
-      - name: Generate Token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
-        id: app-token
-        with:
-          app-id: ${{ secrets.BOT_APP_ID }}
-          private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
-
-      - name: Run App Tests
-        uses: ./.github/actions/app-tests
-        with:
-          app: ${{ inputs.app }}
-          image: ghcr.io/${{ github.repository_owner }}/${{ inputs.app }}@${{ needs.merge.outputs.digest }}
-          token: ${{ github.token }}
-
-      - name: Get App Size Diff
-        uses: ./.github/actions/app-size-diff
-        id: app-size-diff
-        with:
-          from-app: ghcr.io/${{ github.repository_owner }}/${{ inputs.app }}:rolling
-          to-app: ghcr.io/${{ github.repository_owner }}/${{ inputs.app }}:sandbox
-
-      - name: Post App Size Diff
-        uses: marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88 # v3.0.5
-        with:
-          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
-          header: app-size-diff-${{ inputs.app }}
-          message: |
-            ${{ steps.app-size-diff.outputs.size-diff-markdown }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          gh attestation verify --repo "$REPO" "oci://ghcr.io/${REPO_OWNER}/${APP}@${DIGEST}"
 
   announce:
     if: ${{ inputs.release && needs.plan.outputs.app-exists != 'true' }}
@@ -285,10 +291,10 @@ jobs:
     needs:
       - plan
       - attest
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -298,6 +304,7 @@ jobs:
         with:
           app-id: ${{ secrets.BOT_APP_ID }}
           private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
+          permission-contents: write
 
       - name: Get App Options
         uses: ./.github/actions/app-options
@@ -312,18 +319,22 @@ jobs:
           token: ${{ steps.app-token.outputs.token }}
 
       - name: Create Release
-        uses: ncipollo/release-action@339a81892b84b4eeb0f6e744e4574d79d0d9b8dd # v1.21.0
-        with:
-          body: |
-            > [!NOTE]
-            > A new app has been added.
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          TAG: ${{ steps.release.outputs.tag }}
+          APP: ${{ inputs.app }}
+          SOURCE: ${{ steps.app-options.outputs.source }}
+        run: |
+          cat > release-notes.md <<EOF
+          > [!NOTE]
+          > A new app has been added.
 
-            ## 📦 App
+          ## 📦 App
 
-            **Name**: [${{ inputs.app }}](https://github.com/${{ github.repository }}/pkgs/container/${{ inputs.app }})
-            **Source**: <${{ steps.app-options.outputs.source }}>
-          tag: ${{ steps.release.outputs.tag }}
-          token: ${{ steps.app-token.outputs.token }}
+          **Name**: [${APP}](https://github.com/${{ github.repository }}/pkgs/container/${APP})
+          **Source**: <${SOURCE}>
+          EOF
+          gh release create "$TAG" --notes-file release-notes.md
 
   notify:
     if: ${{ inputs.release && !cancelled() }}
@@ -334,11 +345,11 @@ jobs:
       - attest
       - announce
     name: Notify
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - if: ${{ contains(needs.*.result, 'failure') }}
         name: Checkout
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 

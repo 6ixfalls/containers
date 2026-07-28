@@ -27,7 +27,7 @@ runs:
   steps:
     - name: Create package.json
       shell: bash
-      run: |-
+      run: |
         cat > package.json << 'EOF'
         {
           "dependencies": {
@@ -36,16 +36,15 @@ runs:
         }
         EOF
 
-    - name: Setup Node
-      uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+    - name: Setup Mise
+      uses: jdx/mise-action@9e7f7633ff6f6d6048a9418a68d48f288f50eb14 # v4.2.3
       with:
-        cache: npm
-        cache-dependency-path: package.json
-        node-version: 24.x
+        experimental: true
+        install_args: --locked
 
     - name: Setup Node Dependencies
       shell: bash
-      run: |-
+      run: |
         npm install
 
     - name: App Versions
@@ -54,7 +53,7 @@ runs:
       env:
         UPSTREAM_VERSION: ${{ inputs.upstream-version }}
       with:
-        script: |-
+        script: |
           const semver = require('semver');
 
           // Strip the v prefix and pre-release info

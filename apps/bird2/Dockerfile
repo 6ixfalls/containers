@@ -3,7 +3,7 @@ FROM debian:13-slim
 ARG VERSION
 
 RUN apt-get update && \
-    apt-get install -y \
+    apt-get install -y --no-install-recommends \
     bird2="${VERSION}" \
     && rm -rf /var/lib/apt/lists/*
 

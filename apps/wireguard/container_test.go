@@ -1,14 +1,12 @@
 package main
 
 import (
-	"context"
 	"testing"
 
-	"github.com/6ixfalls/containers/testhelpers"
+	"github.com/6ixfalls/containers/tests"
 )
 
 func Test(t *testing.T) {
-	ctx := context.Background()
-	image := testhelpers.GetTestImage("ghcr.io/6ixfalls/wireguard:rolling")
-	testhelpers.TestFileExists(t, ctx, image, "/entrypoint.sh", nil)
+	image := helpers.GetTestImage("ghcr.io/6ixfalls/wireguard:rolling")
+	helpers.RequireFileExists(t, image, "/entrypoint.sh")
 }

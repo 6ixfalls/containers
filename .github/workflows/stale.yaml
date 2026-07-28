@@ -13,7 +13,7 @@ permissions:
 jobs:
   stale:
     name: Stale
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       actions: write
       contents: write
@@ -26,6 +26,8 @@ jobs:
         with:
           app-id: "${{ secrets.BOT_APP_ID }}"
           private-key: "${{ secrets.BOT_APP_PRIVATE_KEY }}"
+          permission-issues: write
+          permission-pull-requests: write
 
       - name: Stale
         uses: actions/stale@1e223db275d687790206a7acac4d1a11bd6fe629 # v10.4.0
