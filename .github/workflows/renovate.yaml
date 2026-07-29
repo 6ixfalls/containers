@@ -12,6 +12,13 @@ on:
       - .github/workflows/renovate.yaml
       - .renovaterc.json5
       - .renovate/**.json5
+  issues:
+    types:
+      - edited
+  pull_request:
+    types:
+      - closed
+      - edited
   workflow_dispatch:
     inputs:
       dryRun:
@@ -21,7 +28,7 @@ on:
         type: boolean
       logLevel:
         description: Log Level
-        default: info
+        default: debug
         options:
           - debug
           - info
@@ -45,6 +52,33 @@ concurrency:
 jobs:
   renovate:
     name: Renovate
+    if: >-
+      github.event_name == 'schedule' ||
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.actor != vars.BOT_USERNAME &&
+        (
+          (
+            github.event_name == 'issues' &&
+            contains(github.event.issue.title, 'Renovate Dashboard') &&
+            (
+              contains(github.event.issue.body, '- [x]') ||
+              contains(github.event.issue.body, 'approve-all-pending-prs') ||
+              contains(github.event.issue.body, 'create-all-rate-limited-prs') ||
+              contains(github.event.issue.body, 'rebase-all-open-prs')
+            )
+          ) ||
+          (
+            github.event_name == 'pull_request' &&
+            github.event.pull_request.user.login == vars.BOT_USERNAME &&
+            (
+              github.event.action == 'closed' ||
+              contains(github.event.pull_request.body, '- [x]')
+            )
+          )
+        )
+      )
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -73,7 +107,6 @@ jobs:
           repositories: ${{ github.event.repository.name }}
 
       - name: Restore Renovate repository cache
-        if: inputs.repoCache != 'disabled' && inputs.repoCache != 'reset'
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: /tmp/renovate/cache/renovate/repository
@@ -83,28 +116,33 @@ jobs:
       - name: Align cache ownership for the Renovate container
         run: |
           sudo mkdir -p /tmp/renovate/cache/renovate/repository
+          # Renovate runs in its container as uid 12021; give it ownership so it
+          # can read and rewrite the restored cache.
           sudo chown -R 12021:0 /tmp/renovate
 
       - name: Renovate
         uses: renovatebot/github-action@3064367f740a1a91cca218698a63902689cce200 # v46.1.20
         env:
-          LOG_LEVEL: ${{ inputs.logLevel || 'info' }}
-          RENOVATE_ALLOWED_UNSAFE_EXECUTIONS: '["goGenerate", "mise"]'
-          RENOVATE_CUSTOM_ENV_VARIABLES: '{"MISE_TRUSTED_CONFIG_PATHS":"/tmp/renovate/repos"}'
+          LOG_LEVEL: ${{ inputs.logLevel || 'debug' }}
           RENOVATE_DRY_RUN: ${{ inputs.dryRun == true }}
           RENOVATE_INTERNAL_CHECKS_FILTER: strict
-          RENOVATE_ONBOARDING: "false"
           RENOVATE_PLATFORM: github
-          RENOVATE_PLATFORM_COMMIT: enabled
-          RENOVATE_PRESET_CACHE_PERSISTENCE: "true"
-          RENOVATE_REPOSITORIES: ${{ github.repository }}
+          RENOVATE_PLATFORM_COMMIT: true
+          RENOVATE_CUSTOM_ENV_VARIABLES: '{"MISE_TRUSTED_CONFIG_PATHS":"/tmp/renovate/repos"}'
+          RENOVATE_ALLOWED_UNSAFE_EXECUTIONS: '["goGenerate", "mise"]'
+          RENOVATE_ALLOWED_COMMANDS: '["^helm-docs ", "^helm-schema ", "^npm "]'
           RENOVATE_REPOSITORY_CACHE: ${{ inputs.repoCache || 'enabled' }}
+          RENOVATE_PRESET_CACHE_PERSISTENCE: "true"
+          RENOVATE_ONBOARDING: "false"
+          RENOVATE_REPOSITORIES: ${{ github.repository }}
           RENOVATE_REQUIRE_CONFIG: required
         with:
+          docker-cmd-file: .github/renovate-entrypoint.sh
+          docker-user: root
           token: ${{ steps.app-token.outputs.token }}
 
       - name: Save Renovate repository cache
-        if: always() && inputs.repoCache != 'disabled'
+        if: always()
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: /tmp/renovate/cache/renovate/repository
