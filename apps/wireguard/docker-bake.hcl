@@ -5,12 +5,12 @@ variable "APP" {
 }
 
 variable "VERSION" {
-  // renovate: datasource=repology depName=alpine_3_22/wireguard-tools versioning=loose
-  default = "1.0.20250521-r0"
+  // renovate: datasource=repology depName=alpine_3_23/wireguard-tools versioning=loose
+  default = "1.0.20250521-r1"
 }
 
 variable "IPTABLES_VERSION" {
-  // renovate: datasource=repology depName=alpine_3_22/iptables versioning=loose
+  // renovate: datasource=repology depName=alpine_3_23/iptables versioning=loose
   default = "1.8.11-r1"
 }
 

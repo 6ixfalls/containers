@@ -5,12 +5,12 @@ variable "APP" {
 }
 
 variable "VERSION" {
-  // renovate: datasource=github-tags depName=nodejs/node versioning=node extractVersion=^v(?<version>.+)$
+  // renovate: datasource=github-tags depName=nodejs/node versioning=node
   default = "25.7.0"
 }
 
 variable "YARN_VERSION" {
-  // renovate: datasource=github-tags depName=yarnpkg/yarn extractVersion=^v(?<version>.+)$
+  // renovate: datasource=github-tags depName=yarnpkg/yarn
   default = "1.22.22"
 }
 

@@ -5,7 +5,7 @@ variable "APP" {
 }
 
 variable "VERSION" {
-  // renovate: datasource=repology depName=alpine_3_22/iptables versioning=loose
+  // renovate: datasource=repology depName=alpine_3_23/iptables versioning=loose
   default = "1.8.11-r1"
 }
 
