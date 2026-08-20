@@ -6,7 +6,7 @@ variable "APP" {
 
 variable "VERSION" {
   // renovate: datasource=github-tags depName=nodejs/node versioning=node
-  default = "25.7.0"
+  default = "25.9.0"
 }
 
 variable "YARN_VERSION" {
