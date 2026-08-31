@@ -6,12 +6,7 @@ variable "APP" {
 
 variable "VERSION" {
   // renovate: datasource=github-tags depName=nodejs/node versioning=node
-  default = "25.7.0"
-}
-
-variable "YARN_VERSION" {
-  // renovate: datasource=github-tags depName=yarnpkg/yarn
-  default = "1.22.22"
+  default = "26.8.1"
 }
 
 variable "SOURCE" {
@@ -26,7 +21,6 @@ target "image" {
   inherits = ["docker-metadata-action"]
   args = {
     VERSION      = "${VERSION}"
-    YARN_VERSION = "${YARN_VERSION}"
   }
   labels = {
     "org.opencontainers.image.source" = "${SOURCE}"
