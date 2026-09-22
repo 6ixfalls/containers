@@ -6,7 +6,7 @@ variable "APP" {
 
 variable "VERSION" {
   // renovate: datasource=github-tags depName=nodejs/node versioning=node
-  default = "26.9.0"
+  default = "26.10.0"
 }
 
 variable "SOURCE" {
