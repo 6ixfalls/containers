@@ -6,7 +6,7 @@ variable "APP" {
 
 variable "VERSION" {
   // renovate: datasource=docker depName=ghcr.io/sirrobot01/decypharr versioning=semver-coerced
-  default = "v2.7"
+  default = "v2.7.1"
 }
 
 variable "SOURCE" {
