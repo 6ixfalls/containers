@@ -5,10 +5,10 @@ case "${1:-}" in
     -h|--help|-V|--version) exec /usr/sbin/spamd "$@" ;;
 esac
 
-refresh-rules.sh || :
-
 case "$(printf '%s' "${ENABLE_UPDATES:-TRUE}" | tr '[:upper:]' '[:lower:]')" in
     true|yes|on|1)
+        refresh-rules.sh || :
+
         runtime_dir=$(mktemp -d /tmp/spamd.XXXXXX)
         pidfile="$runtime_dir/spamd.pid"
         printf '%s /usr/local/bin/refresh-rules.sh %s\n' \
