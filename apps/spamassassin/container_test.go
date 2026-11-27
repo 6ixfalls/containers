@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"net"
+	"strings"
 	"testing"
 	"time"
 
@@ -42,4 +43,45 @@ func TestSpamScan(t *testing.T) {
 	result, err := response.ReadString('\n')
 	require.NoError(t, err)
 	require.Contains(t, result, "Spam: True")
+}
+
+func TestRuleRefresh(t *testing.T) {
+	const updater = `#!/bin/sh
+set -eu
+# The last argument is the staging directory passed to --updatedir.
+for staging do :; done
+if [ ! -f "$HOME/startup-attempt" ]; then
+    touch "$HOME/startup-attempt" "$staging/failed-startup-update"
+    exit 4
+fi
+if [ -f /var/lib/spamassassin/active/scheduled-update ]; then
+    exit 1
+fi
+touch "$staging/scheduled-update"
+`
+	ctx := t.Context()
+	image := helpers.GetTestImage("ghcr.io/6ixfalls/spamassassin:rolling")
+	container, err := testcontainers.Run(ctx, image,
+		testcontainers.WithEnv(map[string]string{"UPDATE_PERIOD": "*/3 * * * * * *"}),
+		testcontainers.WithFiles(testcontainers.ContainerFile{
+			Reader:            strings.NewReader(updater),
+			ContainerFilePath: "/usr/local/bin/sa-update",
+			FileMode:          0o755,
+		}),
+		testcontainers.WithWaitStrategy(
+			wait.ForLog("SpamAssassin rule update failed (exit 4)"),
+			wait.ForLog("server hit by SIGHUP, restarting"),
+			wait.ForLog("spamd: server started on").WithOccurrence(2),
+		),
+	)
+	testcontainers.CleanupContainer(t, container)
+	require.NoError(t, err)
+
+	exitCode, _, err := container.Exec(ctx, []string{"sh", "-ec", `
+        test -f /var/lib/spamassassin/active/scheduled-update
+        test ! -e /var/lib/spamassassin/active/failed-startup-update
+        spamc -K -x -d 127.0.0.1 -t 2
+    `})
+	require.NoError(t, err)
+	require.Zero(t, exitCode)
 }
