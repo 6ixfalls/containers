@@ -9,6 +9,16 @@ variable "VERSION" {
   default = "4.0.2-r0"
 }
 
+variable "SUPERCRONIC_VERSION" {
+  // renovate: datasource=repology depName=alpine_3_23/supercronic versioning=loose
+  default = "0.2.39-r6"
+}
+
+variable "TINI_VERSION" {
+  // renovate: datasource=repology depName=alpine_3_23/tini versioning=loose
+  default = "0.19.0-r3"
+}
+
 variable "SOURCE" {
   default = "https://github.com/apache/spamassassin"
 }
@@ -21,6 +31,8 @@ target "image" {
   inherits = ["docker-metadata-action"]
   args = {
     VERSION = "${VERSION}"
+    SUPERCRONIC_VERSION = "${SUPERCRONIC_VERSION}"
+    TINI_VERSION = "${TINI_VERSION}"
   }
   labels = {
     "org.opencontainers.image.source" = "${SOURCE}"
