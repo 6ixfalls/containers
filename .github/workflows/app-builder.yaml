@@ -120,7 +120,7 @@ jobs:
           app: ${{ inputs.app }}
 
       - name: Login to GitHub Container Registry
-        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -216,7 +216,7 @@ jobs:
           merge-multiple: true
 
       - name: Login to GitHub Container Registry
-        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -259,14 +259,14 @@ jobs:
       DIGEST: ${{ needs.merge.outputs.digest }}
     steps:
       - name: Login to GitHub Container Registry
-        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ github.token }}
 
       - name: Upload Dependency Snapshot
-        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        uses: anchore/sbom-action@dfcb83b97731532d72be422cbc51ee64adb6fd56 # v0.24.4
         with:
           dependency-snapshot: true
           image: ghcr.io/${{ github.repository_owner }}/${{ inputs.app }}@${{ needs.merge.outputs.digest }}
@@ -299,7 +299,7 @@ jobs:
           persist-credentials: false
 
       - name: Generate Token
-        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        uses: actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc # v3.4.0
         id: app-token
         with:
           app-id: ${{ secrets.BOT_APP_ID }}
@@ -362,7 +362,7 @@ jobs:
 
       - if: ${{ contains(needs.*.result, 'failure') }}
         name: Send Discord Webhook
-        uses: sarisia/actions-status-discord@eb045afee445dc055c18d3d90bd0f244fd062708 # v1.16.0
+        uses: sarisia/actions-status-discord@74e2ad0c4e57ca8b9ba6aee75d5a7841497bbb87 # v1.16.1
         with:
           color: "0xFF0000"
           description: |
